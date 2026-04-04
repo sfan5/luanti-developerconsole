@@ -1,5 +1,7 @@
 ## Luanti Developer Console
 
+![screenshot](screenshot.png)
+
 This mod provides a developer console (REPL) for Luanti inside a web browser.
 
 **First time setup**:
