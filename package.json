@@ -1,0 +1,12 @@
+{
+  "name": "developerconsole",
+  "version": "1.0.0",
+  "description": "Luanti Developer Console (server-side part)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.22.1"
+  }
+}

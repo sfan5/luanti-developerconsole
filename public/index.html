@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="UTF-8">
+	<title>Luanti Developer Console</title>
+	<link rel="stylesheet" href="modern-normalize.min.css">
+	<style>
+		main {
+			font-family: monospace;
+			background-color: #1e1e1e;
+			color: #fff;
+			margin: 2em;
+			padding: 10px;
+		}
+		#output {
+			height: 400px;
+			overflow-y: auto;
+			border: 1px solid #333;
+			padding: 10px;
+			background-color: #000;
+			white-space: pre-wrap;
+			tab-size: 2;
+			border-radius: 6px;
+		}
+		#input {
+			width: 100%;
+			padding: 5px;
+			background-color: #1e1e1e;
+			color: #fff;
+			border: 1px solid #333;
+			font-family: monospace;
+			border-radius: 6px;
+		}
+		#preview {
+			color: #bbb;
+			font-size: 0.9em;
+			margin-top: 5px;
+		}
+		#preview .tabcomplete {
+			text-decoration: underline;
+			color: #9f9;
+		}
+		#output .prompt {
+			color: #55ffff;
+		}
+		#output .error {
+			color: #ff5555;
+		}
+	</style>
+</head>
+<body>
+	<main>
+		<div id="output"></div>
+		<input id="input" type="text" placeholder="Lua code..." autofocus autocomplete="off" />
+		<div id="preview"></div>
+	</main>
+	<script src="console.js"></script>
+</body>
+</html>
