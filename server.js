@@ -57,17 +57,22 @@ function waitForResponse(id, timeout) {
 // Message queue from Luanti client
 let incomingMessages = {};
 app.post('/push', (req, res) => {
-	const message = req.body;
-	if (!message.id) {
-		res.status(400).send("Bad Request: missing id");
+	if (!Array.isArray(req.body)){
+		res.status(400).send();
 		return;
 	}
-	if (incomingMessages[message.id] !== undefined) {
-		res.status(409).send("Duplicate message id");
-		return;
+	for (const message of req.body) {
+		if (!message.id) {
+			res.status(400).send("Bad Request: missing id");
+			return;
+		}
+		if (incomingMessages[message.id] !== undefined) {
+			console.log(`Warning: ignoring duplicate reply for ${message.id}`);
+			continue;
+		}
+		incomingMessages[message.id] = message;
+		delete message['id'];
 	}
-	incomingMessages[message.id] = message;
-	delete message['id'];
 	res.status(200).send();
 });
 

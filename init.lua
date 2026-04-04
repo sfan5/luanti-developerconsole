@@ -3,6 +3,7 @@ local dc = {}
 local BASE_URL = "http://localhost:3001"
 local LONG_POLL_TIMEOUT = 100 -- more than in server.js
 local SHORT_TIMEOUT = 2.5
+local EAGER_FLUSH_TIMEOUT = 100 * 1000 -- us
 
 local http -- HTTP API table
 if core.request_http_api then
@@ -121,15 +122,18 @@ end
 
 function dc.process(msg)
 	local action = msg.a or ""
+	local reply
 	if action == "eval" then
-		local x = do_eval(msg)
-		return dc.reply(msg.id, x)
+		reply = do_eval(msg)
 	elseif action == "inspect" then
-		local x = do_inspect(msg)
-		return dc.reply(msg.id, x)
+		reply = do_inspect(msg)
 	else
-		print("unhandled:", dump(msg))
+		core.log("warning", "[DC] unhandled message:", dump(msg))
+		return
 	end
+	reply = table.copy(reply)
+	reply.id = msg.id
+	dc.push(reply)
 end
 
 -- Long polling loop
@@ -186,7 +190,7 @@ function dc.poll()
 			end
 			dc.poll()
 		else
-			core.log("info", "developerconsole: polling failed: " .. dump(result))
+			core.log("info", "[DC] poll failed: " .. dump(result))
 			core.after(1, dc.poll) -- delay retry
 		end
 	end)
@@ -198,19 +202,40 @@ core.register_on_joinplayer(function(player)
 end)
 
 -- RPC replies
--- TODO could batch these (is that useful?)
-function dc.reply(id, data)
+local pending_msgs = {}
+local last_flush = 0
+function dc.push(data)
 	assert(type(data) == "table")
-	local message = table.copy(data)
-	message.id = id
+	pending_msgs[#pending_msgs + 1] = data
+
+	if core.get_us_time() >= last_flush + EAGER_FLUSH_TIMEOUT then
+		-- if we're somehow stuck in a server step for longer then flush
+		dc.flush()
+	end
+end
+
+function dc.flush()
+	if #pending_msgs == 0 then
+		return
+	end
+	local t = pending_msgs
+	pending_msgs = {}
+	last_flush = core.get_us_time()
 	http.fetch({
 		url = BASE_URL .. "/push",
 		method = "POST",
-		data = core.write_json(message),
+		data = core.write_json(t),
 		extra_headers = { "Content-Type: application/json" },
 	}, function(result)
 		if not (result.succeeded and result.code < 400) then
-			core.log("info", "developerconsole: rpc reply failed: " .. dump(result))
+			core.log("info", "[DC] push failed: " .. dump(result))
 		end
 	end)
 end
+
+core.register_on_mods_loaded(function()
+	core.after(0, function()
+		 -- should happen last, if possible
+		 dc.flush()
+	end)
+end)
