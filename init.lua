@@ -152,23 +152,25 @@ local function trigger_online_feedback(force)
 	end
 end
 
-local online_ok = false
+local online_retry = 0 -- -1 = succeeded already
 function dc.poll()
-	if not online_ok then
+	if online_retry >= 0 then
 		-- Ping server first so we can get immediate feedback
 		http.fetch({
 			url = BASE_URL .. "/ping",
 			timeout = SHORT_TIMEOUT,
 		}, function(result)
 			if result.succeeded and result.code < 400 then
-				online_ok = true
+				online_retry = -1
 				once_ok = math.max(once_ok, 1)
 				trigger_online_feedback()
 				core.after(5, trigger_online_feedback, true)
 				-- immediately start polling
 				dc.poll()
 			else
-				core.after(1, dc.poll) -- delayed retry
+				local delay = math.pow(2, online_retry)
+				online_retry = online_retry + 1
+				core.after(delay, dc.poll)
 				return
 			end
 		end)
