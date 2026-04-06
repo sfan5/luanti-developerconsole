@@ -236,8 +236,8 @@ function dc.flush()
 end
 
 core.register_on_mods_loaded(function()
-	core.after(0, function()
-		 -- should happen last, if possible
+	-- should happen last, if possible
+	core.register_globalstep(function()
 		 dc.flush()
 	end)
 end)
