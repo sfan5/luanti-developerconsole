@@ -58,8 +58,29 @@ function appendToOutput(text, className = '', after = null) {
 	return div;
 }
 
+socket.on('event', (data) => {
+	if (!Array.isArray(data)) {
+		console.error("Type mismatch: expected array", data);
+		return;
+	}
+	const LOG_LEVELS = [null, "NONE", "ERROR", "WARNING", "ACTION", "INFO", "VERBOSE", "TRACE"];
+	for (const it of data) {
+		if (it.event == "log") {
+			if (typeof(it.l) === 'number' && it.l !== 1) {
+				appendToOutput(`${LOG_LEVELS[it.l]}:\u00a0${it.s}`, 'log');
+			} else {
+				// normal print or log level 'none'
+				appendToOutput("\u00a0\u00a0" + it.s);
+			}
+		} else {
+			DEBUG && console.log("unhandled event:", it);
+		}
+	}
+});
+
 // Allows simple table or array access, no function calls or anything
 // FIXME: would need to rewrite this to support foo["b"]["a"]
+// FIXME: the whole identifier regex thing needs to also handle reserved ones...
 function isSafeExpression(expr) {
 	const parts = expr.split('.');
 	if (parts.length === 0) {
@@ -213,7 +234,7 @@ function getPreview(parsedExpr) {
 				return reject("raced");
 			pendingPreview = null;
 			if (data === null)
-				return reject("timeout?");
+				return reject("timeout");
 			if (!data.error) {
 				cachedPreviewData = {
 					expr: parsedExpr.expr,
@@ -421,17 +442,20 @@ function formatPreview(parsedExpr, previewData) {
 }
 
 function evaluateExpression(cmd) {
-	const promptNode = appendToOutput(`> ${cmd}`, 'prompt');
+	const promptNode = appendToOutput(`\u2b62\u00a0${cmd}`, 'prompt');
+
+	// FIXME: should probably do this using css instead?
+	const pre = '\u2b60\u00a0';
 
 	socket.emit('rpc', { a: 'eval', code: cmd }, (data) => {
 		if (data === null) {
-			appendToOutput("Timeout?", 'error', promptNode);
+			appendToOutput(`${pre}Timeout`, 'error', promptNode);
 		} else if (data.syntax_error) {
-			appendToOutput(`Syntax error: ${data.syntax_error}`, 'error', promptNode);
+			appendToOutput(`${pre}Syntax error: ${data.syntax_error}`, 'error', promptNode);
 		} else if (data.runtime_error) {
-			appendToOutput(`Runtime error: ${data.runtime_error}`, 'error', promptNode);
+			appendToOutput(`${pre}Runtime error: ${data.runtime_error}`, 'error', promptNode);
 		} else {
-			appendToOutput(String(data.ret), '', promptNode);
+			appendToOutput(pre + String(data.ret), '', promptNode);
 		}
 	});
 }
@@ -507,10 +531,11 @@ input.addEventListener('keydown', (ev) => {
 	if (ev.key === 'Enter') {
 		const cmd = input.value.trim();
 		if (cmd) {
-			// TODO: no duplicates
-			history.push(cmd);
-			historyIndex = history.length;
-			saveHistory();
+			if (history.length == 0 || history[history.length - 1] != cmd) {
+				history.push(cmd);
+				historyIndex = history.length;
+				saveHistory();
+			}
 			evaluateExpression(cmd);
 		}
 		input.value = '';

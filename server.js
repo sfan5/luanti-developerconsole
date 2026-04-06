@@ -38,7 +38,7 @@ io.on('connection', (socket) => {
 		}).catch((_) => {
 			// Remove from queue
 			messageQueue = messageQueue.filter(it => it.id != myID);
-			console.error("No response from client", myID);
+			console.error(`No response from client for ${myID}`);
 			callback(null);
 		});
 	});
@@ -67,18 +67,25 @@ app.post('/push', (req, res) => {
 		res.status(400).send();
 		return;
 	}
+	const events = [];
 	for (const message of req.body) {
-		if (!message.id) {
-			res.status(400).send("Bad Request: missing id");
+		// id => RPC reply
+		if (message.id) {
+			if (incomingMessages[message.id] !== undefined) {
+				console.warn(`Ignoring duplicate reply for ${message.id}`);
+				continue;
+			}
+			incomingMessages[message.id] = message;
+			delete message['id'];
+		} else if (message.event) {
+			events.push(message);
+		} else {
+			res.status(400).send();
 			return;
 		}
-		if (incomingMessages[message.id] !== undefined) {
-			console.log(`Warning: ignoring duplicate reply for ${message.id}`);
-			continue;
-		}
-		incomingMessages[message.id] = message;
-		delete message['id'];
 	}
+	if (events.length > 0)
+		io.emit('event', events);
 	res.status(200).send();
 });
 

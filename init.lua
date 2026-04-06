@@ -18,14 +18,13 @@ end
 
 --[[
 list of ideas:
-* capture log/print and show in console (or separate tab?)
+* indicate if poller is online, show luanti version from user agent
 * show line/source for defined functions (debug.getinfo) <-> source inspector
 * general tab completion when writing e.g. a function call
   -> split "preview" and "tab completion" for this
-* indicate if poller is online, show luanti version from user agent
 * mod storage viewer??
 * send tables with structure so they can be displayed tree view-like
-* or at least throw syntax highlighting on the display
+  or at least throw syntax highlighting on the display
 * basic profiler (top function calls in globalstep)
 * allow multiline editing *or* separate code editor with saved snippets?
 * integrate with lua_api to show function params
@@ -136,6 +135,49 @@ function dc.process(msg)
 	dc.push(reply)
 end
 
+-- Log interception
+-- (best-effort, need engine support for this...)
+
+do
+	local function concat_args(...)
+		local n, t = select("#", ...), {...}
+		for i = 1, n do
+			t[i] = tostring(t[i])
+		end
+		return table.concat(t, "\t")
+	end
+	local level_map = {
+		none = 1, error = 2, warning = 3, action = 4,
+		info = 5, verbose = 6, trace = 7
+	}
+
+	local old_print = print
+	function print(...)
+		local s = concat_args(...)
+		dc.push({event = "log", s = s})
+		old_print(s)
+	end
+
+	local old_log = core.log
+	function core.log(level, text, stack_level)
+		if text == nil then
+			text = level
+			level = "none"
+		end
+		if level == "deprecated" then
+			-- can't handle this ourselves, so just pass it
+			-- but make sure the stack level is correct
+			old_log(level, text, (stack_level or 2) + 1)
+			return
+		end
+		local level_n = level_map[level]
+		if level_n ~= nil and level_n <= 4 then -- TODO: this should be adjustable
+			dc.push({event = "log", s = tostring(text), l = level_n})
+		end
+		old_log(level, text)
+	end
+end
+
 -- Long polling loop
 
 local once_ok = 0 -- 0 = not ok, 1 = pending notify, 2 = notified
@@ -210,7 +252,7 @@ core.register_on_joinplayer(function(player)
 	trigger_online_feedback()
 end)
 
--- RPC replies
+-- Message queue to server
 local pending_msgs = {}
 local last_flush = 0
 function dc.push(data)
@@ -218,7 +260,7 @@ function dc.push(data)
 	pending_msgs[#pending_msgs + 1] = data
 
 	if core.get_us_time() >= last_flush + EAGER_FLUSH_TIMEOUT then
-		-- if we're somehow stuck in a server step for longer then flush
+		-- if we're somehow stuck in a server step for longer then flush early
 		dc.flush()
 	end
 end
@@ -247,4 +289,8 @@ core.register_on_mods_loaded(function()
 	core.register_globalstep(function()
 		 dc.flush()
 	end)
+end)
+
+core.register_on_shutdown(function()
+	dc.flush()
 end)
