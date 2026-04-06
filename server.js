@@ -1,41 +1,47 @@
 const express = require('express');
-const app = express();
+const socketio = require('socket.io');
+const http = require('http');
 
 const MAX_RPC_ID = 0x1000000;
 const LONG_POLL_TIMEOUT = 98 * 1000;
+const MAX_RPC_SIZE = 42 * 1024 * 1024; // MB
 const RPC_TIMEOUT = 2.5 * 1000;
 
-app.use(express.json({limit: '42MB'}));
+const app = express();
+const http_server = http.createServer(app);
+const io = new socketio.Server(http_server, {maxHttpBufferSize: MAX_RPC_SIZE});
+
+app.use(express.json({limit: MAX_RPC_SIZE}));
 
 app.get('/ping', (req, res) => {
 	res.status(204).send();
 });
 
-// RPC endpoint (used by frontend)
-// future TODO: websocket
+// RPC via websocket (used by frontend)
 let rpcID = 1;
 
-app.post('/rpc', async (req, res) => {
-	const message = req.body;
-	if (typeof(message) !== 'object' || message === null) {
-		res.status(400).send("Type mismatch: expected object");
-		return;
-	}
+io.on('connection', (socket) => {
+	socket.on('rpc', (message, callback) => {
+		if (typeof(message) !== 'object' || message === null) {
+			console.error("Type mismatch: expected object", message);
+			return;
+		}
 
-	const myID = rpcID;
-	rpcID = (rpcID + 1) % MAX_RPC_ID;
-	message.id = myID;
-	pushToQueue(message);
+		const myID = rpcID;
+		rpcID = (rpcID + 1) % MAX_RPC_ID;
+		message.id = myID;
+		pushToQueue(message);
 
-	try {
-		const response = await waitForResponse(myID, RPC_TIMEOUT);
-		delete incomingMessages[myID];
-		res.json(response);
-	} catch (err) {
-		delete incomingMessages[myID];
-		messageQueue = messageQueue.filter(it => it.id != myID);
-		res.status(504).send("No response from client");
-	}
+		waitForResponse(myID, RPC_TIMEOUT).then((response) => {
+			delete incomingMessages[myID];
+			callback(response);
+		}).catch((_) => {
+			// Remove from queue
+			messageQueue = messageQueue.filter(it => it.id != myID);
+			console.error("No response from client", myID);
+			callback(null);
+		});
+	});
 });
 
 function waitForResponse(id, timeout) {
@@ -141,6 +147,6 @@ function pushToQueue(message) {
 app.use(express.static('public'));
 
 const PORT = 3001;
-app.listen(PORT, 'localhost', () => {
+http_server.listen(PORT, 'localhost', () => {
 	console.log(`Server running on port ${PORT}`);
 });

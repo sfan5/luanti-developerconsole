@@ -152,6 +152,17 @@ local function trigger_online_feedback(force)
 	end
 end
 
+local function process_polled_data(str)
+	local data = core.parse_json(str)
+	if not data or type(data) ~= "table" then
+		core.log("warning", "[DC] bogus data: " .. dump(str))
+		return
+	end
+	for _, msg in ipairs(data) do
+		dc.process(msg)
+	end
+end
+
 local online_retry = 0 -- -1 = succeeded already
 function dc.poll()
 	if online_retry >= 0 then
@@ -184,13 +195,9 @@ function dc.poll()
 		quiet = true,
 	}, function(result)
 		if result.succeeded and result.code < 400 then
-			local data = core.parse_json(result.data)
-			if data and type(data) == "table" then
-				for _, msg in ipairs(data) do
-					dc.process(msg)
-				end
-			end
+			-- run new poll ASAP
 			dc.poll()
+			process_polled_data(result.data)
 		else
 			core.log("info", "[DC] poll failed: " .. dump(result))
 			core.after(1, dc.poll) -- delay retry

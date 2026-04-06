@@ -5,6 +5,8 @@ const output = document.getElementById('output');
 const input = document.getElementById('input');
 const preview = document.getElementById('preview');
 
+const socket = io(); // Socket.IO
+
 let history = [];
 let historyIndex = -1;
 const HISTORY_STORAGE_KEY = 'developerconsole.history';
@@ -193,44 +195,43 @@ function getCachedPreview(parsedExpr) {
 }
 
 // Gets preview data using RPC
-async function getPreview(parsedExpr) {
+function getPreview(parsedExpr) {
 	// we can't invalidate when Lua state changes or anything, so pick something short
 	const PREVIEW_CACHE_DURATION = 5 * 1000;
+
+	cancelPendingPreview();
+	const ac = new AbortController();
+	pendingPreview = ac;
+
+	const p = new Promise((resolve, reject) => {
+		socket.emit('rpc', {
+			a: 'inspect',
+			expr: parsedExpr.expr,
+			index: parsedExpr.index
+		}, (data) => {
+			if (pendingPreview !== ac || ac.signal.aborted)
+				return reject("raced");
+			pendingPreview = null;
+			if (data === null)
+				return reject("timeout?");
+			if (!data.error) {
+				cachedPreviewData = {
+					expr: parsedExpr.expr,
+					index: parsedExpr.index,
+					data: data,
+					until: performance.now() + PREVIEW_CACHE_DURATION,
+				};
+			}
+			resolve(data);
+		});
+	});
+	return p;
+}
+
+function cancelPendingPreview() {
 	if (pendingPreview) {
 		pendingPreview.abort();
 		pendingPreview = null;
-	}
-	const ac = new AbortController();
-	pendingPreview = ac;
-	try {
-		const res = await fetch('/rpc', {
-			method: 'POST',
-			headers: {'Content-Type': 'application/json'},
-			signal: pendingPreview.signal,
-			body: JSON.stringify({
-				a: 'inspect',
-				expr: parsedExpr.expr,
-				index: parsedExpr.index
-			})
-		});
-		if (pendingPreview !== ac)
-			throw new Error("raced");
-		pendingPreview = null;
-		if (!res.ok)
-			throw new Error(`HTTP ${res.status}`);
-		const data = await res.json();
-		if (data && !data.error) {
-			cachedPreviewData = {
-				expr: parsedExpr.expr,
-				index: parsedExpr.index,
-				data: data,
-				until: performance.now() + PREVIEW_CACHE_DURATION,
-			};
-		}
-		return data;
-	} catch (err) {
-		console.log("preview error", err);
-		return null;
 	}
 }
 
@@ -422,43 +423,23 @@ function formatPreview(parsedExpr, previewData) {
 function evaluateExpression(cmd) {
 	const promptNode = appendToOutput(`> ${cmd}`, 'prompt');
 
-	fetch('/rpc', {
-		method: 'POST',
-		headers: {'Content-Type': 'application/json'},
-		body: JSON.stringify({ a: 'eval', code: cmd })
-	})
-	.then(async (res) => {
-		if (!res.ok) {
-			throw new Error(`HTTP ${res.status}`);
-		}
-		return res.json();
-	})
-	.then((data) => {
-		if (data.syntax_error) {
+	socket.emit('rpc', { a: 'eval', code: cmd }, (data) => {
+		if (data === null) {
+			appendToOutput("Timeout?", 'error', promptNode);
+		} else if (data.syntax_error) {
 			appendToOutput(`Syntax error: ${data.syntax_error}`, 'error', promptNode);
 		} else if (data.runtime_error) {
 			appendToOutput(`Runtime error: ${data.runtime_error}`, 'error', promptNode);
 		} else {
 			appendToOutput(String(data.ret), '', promptNode);
 		}
-	})
-	.catch((err) => {
-		appendToOutput(`${err.message}`, 'error', promptNode);
 	});
-}
-
-function clearPreview() {
-	if (pendingPreview) {
-		pendingPreview.abort();
-		pendingPreview = null;
-	}
-	lastPreview = null;
-	preview.textContent = '';
 }
 
 function updatePreview(pExpr) { // instant
 	if (!pExpr) {
-		clearPreview();
+		lastPreview = null;
+		preview.textContent = '';
 		return true;
 	}
 	const data = getCachedPreview(pExpr);
@@ -479,8 +460,10 @@ function triggerTabComplete() {
 
 	// if we can update the preview without delay, do that immediately
 	const val = input.value;
-	if (updatePreview(parsePreviewableExpr(val)))
+	if (updatePreview(parsePreviewableExpr(val))) {
+		cancelPendingPreview();
 		return;
+	}
 
 	// old suggestion is invalidated immediately, but preview stays
 	if (lastPreview && lastPreview.pData) {
@@ -496,8 +479,10 @@ function triggerTabComplete() {
 
 		const newVal = input.value;
 		const pExpr = parsePreviewableExpr(newVal);
-		if (updatePreview(pExpr))
+		if (updatePreview(pExpr)) {
+			cancelPendingPreview();
 			return;
+		}
 		if (val != newVal && !shouldPreviewSimilar(parsePreviewableExpr(val), pExpr)) {
 			// user is still typing, wait more.
 			triggerTabComplete();
@@ -508,6 +493,8 @@ function triggerTabComplete() {
 			lastPreview = { pExpr, pData };
 			DEBUG && console.log(lastPreview);
 			preview.innerHTML = formatPreview(pExpr, pData);
+		}).catch((err) => {
+			DEBUG && console.log("preview error:", err);
 		});
 	}, TAB_COMPLETE_DELAY);
 }
@@ -520,6 +507,7 @@ input.addEventListener('keydown', (ev) => {
 	if (ev.key === 'Enter') {
 		const cmd = input.value.trim();
 		if (cmd) {
+			// TODO: no duplicates
 			history.push(cmd);
 			historyIndex = history.length;
 			saveHistory();
