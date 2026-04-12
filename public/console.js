@@ -267,13 +267,33 @@ function isLuaArray(keys) {
 }
 
 function formatLuaValue(value) {
-	if (typeof value === 'string') {
+	if (typeof(value) === 'string') {
 		// FIXME: utf-8, escapes, everything to match Lua
 		return JSON.stringify(value);
 	} else if (value === null) {
 		return 'nil';
 	}
+	// boolean or number
 	return String(value);
+}
+
+function formatLuaValueDisplay(value, stringMaxLen = -1) {
+	if (typeof(value) === 'string') {
+		// FIXME: as above
+		let text = JSON.stringify(value).replace(/\s+/g, ' ');
+		// TODO truncate inside quotes and show entire len
+		if (stringMaxLen > 0 && text.length > stringMaxLen) {
+			text = text.substring(0, stringMaxLen) + '\u2026';
+		}
+		return '<span class="hljs-string">' + escapeHtml(text) + '</span>';
+	} else if (value === null) {
+		return '<span class="hljs-literal">nil</span>';
+	} else if (typeof(value) === 'number') {
+		return '<span class="hljs-number">' + String(value) + '</span>';
+	} else if (typeof(value) === 'boolean') {
+		return '<span class="hljs-literal">' + String(value) + '</span>';
+	}
+	return '???';
 }
 
 // Decides what to preview or tab-complete
@@ -308,10 +328,8 @@ function decidePreview(parsedExpr, data) {
 	const canSuggestKey = !ret.wasIndexed;
 	if (data.type === 'nil') {
 		ret.text = 'nil';
-	} else if (data.type === 'string') {
-		ret.stringValue = data.value;
-	} else if (data.value) {
-		ret.text = String(data.value); // booleans or numbers
+	} else if (data.type === 'string' || data.type === 'number' || data.type === 'boolean') {
+		ret.rawValue = data.value;
 	} else if (data.as_string) {
 		ret.text = data.as_string;
 	} else if (data.type === 'table') {
@@ -324,7 +342,7 @@ function decidePreview(parsedExpr, data) {
 			if (data.keys.length <= 3)
 				ret.tableKeys = data.keys;
 			else
-				ret.text = `[ 1 \u2026 ${data.keys.length} ]`;
+				ret.tableRange = [1, data.keys.length];
 		} else if (data.keys.length > 0) {
 			const index = parsedExpr.index;
 			let matches = data.keys;
@@ -404,23 +422,10 @@ function formatPreview(parsedExpr, previewData) {
 
 	const PREVIEW_MAX_LEN = 520;
 	let ret = '';
-	if (previewData.stringValue !== undefined) {
-		// also normalizes whitespace (incl. newlines)
-		let text = formatLuaValue(previewData.stringValue).replace(/\s+/g, ' ');
-		// TODO truncate inside quotes and show entire len
-		if (text.length > PREVIEW_MAX_LEN) {
-			text = text.substring(0, PREVIEW_MAX_LEN) + '\u2026';
-		}
-
-		ret = escapeHtml(text);
+	if (previewData.rawValue !== undefined) {
+		ret = formatLuaValueDisplay(previewData.rawValue, PREVIEW_MAX_LEN);
 	} else if (previewData.tableKeys !== undefined) {
-		let keys;
-		if (parsedExpr.arrayIndex) {
-			// need to format keys like proper Lua values
-			keys = previewData.tableKeys.map(k => formatLuaValue(k));
-		} else {
-			keys = previewData.tableKeys;
-		}
+		let keys = previewData.tableKeys;
 		let line = '';
 		let length = 0;
 		for (const [i, key] of keys.entries()) {
@@ -432,17 +437,27 @@ function formatPreview(parsedExpr, previewData) {
 				line += '\u2026';
 				break;
 			}
+			length += key.length; // this counts the actually visible length (roughly)
+
+			let keyHtml;
+			if (parsedExpr.arrayIndex) {
+				// need to format keys like proper Lua values
+				keyHtml = formatLuaValueDisplay(key, PREVIEW_MAX_LEN / 10);
+			} else {
+				keyHtml = escapeHtml(key);
+			}
 			if (i === previewData.tableKeyHilit)
-				line += '<span class="tabcomplete">' + escapeHtml(key) + '</span>';
-			else
-				line += escapeHtml(key);
-			length += key.length;
+				keyHtml = '<span class="tabcomplete">' + keyHtml + '</span>';
+			line += keyHtml;
 		}
 		if (previewData.tableKeysHidden) {
 			const n = previewData.tableKeysHidden;
 			line += (length > 0 ? ', ' : '') + `(${n} other keys not shown)`;
 		}
 		ret = '[ ' + line + ' ]';
+	} else if (previewData.tableRange !== undefined) {
+		const r = previewData.tableRange;
+		ret = `[ ${formatLuaValueDisplay(r[0])} \u2026 ${formatLuaValueDisplay(r[1])} ]`;
 	} else {
 		ret = escapeHtml(previewData.text || '???');
 	}
@@ -548,9 +563,9 @@ input.addEventListener('keydown', (ev) => {
 		if (cmd) {
 			if (history.length == 0 || history[history.length - 1] != cmd) {
 				history.push(cmd);
-				historyIndex = history.length;
 				saveHistory();
 			}
+			historyIndex = history.length;
 			evaluateExpression(cmd);
 		}
 		input.value = '';
