@@ -20,7 +20,6 @@ end
 list of ideas:
 * tab complete node and group names (+ entities?)
 * show line/source for defined functions (debug.getinfo) <-> source inspector
-* general tab completion when writing e.g. a function call
 * mod storage viewer?
 * send tables with structure so they can be displayed tree view-like
 * basic profiler (top function calls in globalstep)??

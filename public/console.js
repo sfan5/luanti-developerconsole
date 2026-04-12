@@ -208,10 +208,39 @@ function parsePreviewableExpr(expr) {
 }
 
 // Find an expression that we can preview at the cursor position
-function findPreviewableExpr(expr, pos) {
-	let ret = parsePreviewableExpr(expr);
-	if (ret && pos >= ret.lastStart && pos <= ret.lastEnd)
-		return ret;
+// This can be a sub-string if the user is currently typing e.g. a function argument
+function findPreviewableExpr(expr, findPos) {
+	// First neutralize strings so we can do our regex hackery
+	if (expr.indexOf('\\') != -1 || expr.indexOf('[[') != -1)
+		return null;
+	expr = expr
+		.replace(/"[^"]*"/, (s) => "!".repeat(s.length))
+		.replace(/'[^']*'/, (s) => "!".repeat(s.length));
+	// Now try finding a place where a Lua expression could fit
+	// FIXME: should consider places where only an identifier is valid
+	let last = 0;
+	const parts = [];
+	const r = new RegExp(/[{(,=]\s*/g);
+	while ((m = r.exec(expr)) !== null) {
+		parts.push({ start: last, end: m.index });
+		last = m.index + m[0].length;
+	}
+	if (last != expr.length) {
+		parts.push({ start: last, end: expr.length });
+	}
+	// Check if the part under the cursor is previewable and use that
+	for (const p of parts) {
+		//console.log(p, expr.substring(p.start, p.end));
+		if (findPos >= p.start && findPos <= p.end) {
+			let pExpr = parsePreviewableExpr(expr.substring(p.start, p.end));
+			if (pExpr) {
+				pExpr.lastStart += p.start;
+				pExpr.lastEnd += p.start;
+				if (findPos >= pExpr.lastStart && findPos <= pExpr.lastEnd)
+					return pExpr;
+			}
+		}
+	}
 	return null;
 }
 
@@ -600,6 +629,25 @@ function triggerTabComplete() {
 	}, TAB_COMPLETE_DELAY);
 }
 
+function applyTabComplete() {
+	const val = input.value;
+	if (!lastPreview || !lastPreview.pData)
+		return false;
+	const { pExpr } = lastPreview;
+	const { tabComplete } = lastPreview.pData;
+	if (!tabComplete)
+		return false;
+	const tail = val.substring(pExpr.lastEnd);
+	if (tabComplete.append)
+		input.value = val.substring(0, pExpr.lastEnd) + tabComplete.text + tail;
+	else
+		input.value = val.substring(0, pExpr.lastStart) + tabComplete.text + tail;
+	// move cursor
+	const off = (tabComplete.offset || 0) - tail.length;
+	input.setSelectionRange(input.value.length + off, input.value.length + off);
+	triggerTabComplete();
+}
+
 input.addEventListener('input', () => {
 	triggerTabComplete();
 });
@@ -640,21 +688,14 @@ input.addEventListener('keydown', (ev) => {
 		ev.preventDefault();
 	} else if (ev.key === 'Tab') {
 		ev.preventDefault();
-		const val = input.value;
-		if (lastPreview && lastPreview.pData) {
-			const { pExpr } = lastPreview;
-			const { tabComplete } = lastPreview.pData;
-			if (tabComplete) {
-				if (tabComplete.append)
-					input.value = val.substring(0, pExpr.lastEnd) + tabComplete.text + val.substring(pExpr.lastEnd);
-				else
-					input.value = val.substring(0, pExpr.lastStart) + tabComplete.text + val.substring(pExpr.lastEnd);
-				// move cursor
-				const off = tabComplete.offset || 0;
-				input.setSelectionRange(input.value.length + off, input.value.length + off);
-				triggerTabComplete();
-			}
-		}
+		applyTabComplete();
+	}
+});
+
+preview.addEventListener('click', (ev) => {
+	// Clicking the highlighted part also triggers tab completion
+	if (ev.target.closest(".tabcomplete")) {
+		applyTabComplete();
 	}
 });
 
