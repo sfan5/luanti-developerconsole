@@ -136,7 +136,9 @@ function parsePreviewableExpr(expr) {
 		return null;
 
 	let colonOp = false;
-	if (/:(\s*([a-zA-Z_][a-zA-Z0-9_]*\s*)?)$/.test(expr)) {
+	if (/"[^"]*$/.test(expr)) {
+		// expression end on unterminated string, abort
+	} else if (/:(\s*([a-zA-Z_][a-zA-Z0-9_]*\s*)?)$/.test(expr)) {
 		// handle colon operator by pretending it's a dot
 		colonOp = true;
 		expr = expr.replace(/:(\s*([a-zA-Z_][a-zA-Z0-9_]*\s*)?)$/, ".$1");
@@ -567,8 +569,14 @@ function evaluateExpression(cmdStr) {
 		} else if (data.runtime_error) {
 			appendToOutput(`${pre}Runtime error: ${data.runtime_error}`, 'error', promptNode);
 		} else {
-			const ret = hljs.highlight(String(data.ret), {language: 'lua', ignoreIllegals: true});
-			appendToOutput(pre + ret.value, '', promptNode, true);
+			const parts = [];
+			if (!data.ret)
+				data.ret = ['nil'];
+			for (const retStr of data.ret) {
+				const ret = hljs.highlight(retStr, {language: 'lua', ignoreIllegals: true});
+				parts.push(ret.value);
+			}
+			appendToOutput(pre + parts.join("\t"), '', promptNode, true);
 		}
 	});
 }

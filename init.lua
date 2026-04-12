@@ -1,5 +1,9 @@
 local dc = {}
 
+-- use these over calling the normal functions to avoid infinite loops
+local old_core_log = core.log
+local old_print = print
+
 local BASE_URL = "http://localhost:3001"
 local LONG_POLL_TIMEOUT = 100 -- more than in server.js
 local SHORT_TIMEOUT = 2.5
@@ -18,10 +22,10 @@ end
 
 --[[
 list of ideas:
-* tab complete node and group names (+ entities?)
+* send tables with structure so they can be displayed tree view-like
 * show line/source for defined functions (debug.getinfo) <-> source inspector
 * mod storage viewer?
-* send tables with structure so they can be displayed tree view-like
+* tab complete node and group names (+ entities?)
 * basic profiler (top function calls in globalstep)??
 * allow multiline editing *or* separate code editor with saved snippets?
 * integrate with lua_api to show function params
@@ -29,23 +33,33 @@ list of ideas:
 
 --]]
 
+local function mydump(obj)
+	if type(obj) == "table" then
+		-- TODO
+	end
+	return dump(obj)
+end
+
 local function do_eval(msg)
-	-- maybe a bit stupid but it works
-	local func, err = loadstring("return (" .. msg.code .. ")")
-	if not func then
+	-- note: no brackets to allow multiple return values
+	local func, err = loadstring("return " .. msg.code)
+	if not func then -- maybe a bit stupid but it works
 		func, err = loadstring(msg.code)
 	end
 	if not func then
 		return {syntax_error = err}
 	end
 
-	local success, ret = pcall(func)
+	local ret = {pcall(func)}
+	local success = table.remove(ret, 1)
 	if not success then
-		return {runtime_error = ret}
+		return {runtime_error = tostring(ret[1])}
 	end
 
-	-- this should be something custom for better UX
-	return {ret = dump(ret)}
+	for i, v in ipairs(ret) do
+		ret[i] = mydump(v)
+	end
+	return {ret = ret}
 end
 
 local function do_inspect(msg)
@@ -61,7 +75,7 @@ local function do_inspect(msg)
 		local success
 		success, object = pcall(func)
 		if not success then
-			return {error = object}
+			return {error = tostring(object)}
 		end
 	end
 
@@ -138,7 +152,7 @@ function dc.process(msg)
 	elseif action == "inspect" then
 		reply = do_inspect(msg)
 	else
-		core.log("warning", "[DC] unhandled message:", dump(msg))
+		old_core_log("warning", "[DC] unhandled message:", dump(msg))
 		return
 	end
 	reply = table.copy(reply)
@@ -162,14 +176,12 @@ do
 		info = 5, verbose = 6, trace = 7
 	}
 
-	local old_print = print
 	function print(...)
 		local s = concat_args(...)
 		dc.push({event = "log", s = s})
 		old_print(s)
 	end
 
-	local old_log = core.log
 	function core.log(level, text, stack_level)
 		if text == nil then
 			text = level
@@ -178,14 +190,14 @@ do
 		if level == "deprecated" then
 			-- can't handle this ourselves, so just pass it
 			-- but make sure the stack level is correct
-			old_log(level, text, (stack_level or 2) + 1)
+			old_core_log(level, text, (stack_level or 2) + 1)
 			return
 		end
 		local level_n = level_map[level]
 		if level_n ~= nil and level_n <= 4 then -- TODO: this should be adjustable
 			dc.push({event = "log", s = tostring(text), l = level_n})
 		end
-		old_log(level, text)
+		old_core_log(level, text)
 	end
 end
 
@@ -199,7 +211,7 @@ local function trigger_online_feedback(force)
 			core.chat_send_all(msg)
 			once_ok = 2
 		elseif force then
-			print(msg) -- For headless usage
+			old_print(msg) -- For headless usage
 			once_ok = 2
 		end
 	end
@@ -208,7 +220,7 @@ end
 local function process_polled_data(str)
 	local data = core.parse_json(str)
 	if not data or type(data) ~= "table" then
-		core.log("warning", "[DC] bogus data: " .. dump(str))
+		old_core_log("warning", "[DC] bogus data: " .. dump(str))
 		return
 	end
 	for _, msg in ipairs(data) do
@@ -252,7 +264,7 @@ function dc.poll()
 			dc.poll()
 			process_polled_data(result.data)
 		else
-			core.log("info", "[DC] poll failed: " .. dump(result))
+			old_core_log("info", "[DC] poll failed: " .. dump(result))
 			core.after(1, dc.poll) -- delay retry
 		end
 	end)
@@ -283,14 +295,19 @@ function dc.flush()
 	local t = pending_msgs
 	pending_msgs = {}
 	last_flush = core.get_us_time()
+	local json, err = core.write_json(t)
+	if err then
+		old_core_log("warning", "[DC] json writing failed: " .. err)
+		return
+	end
 	http.fetch({
 		url = BASE_URL .. "/push",
 		method = "POST",
-		data = core.write_json(t),
+		data = json,
 		extra_headers = { "Content-Type: application/json" },
 	}, function(result)
 		if not (result.succeeded and result.code < 400) then
-			core.log("info", "[DC] push failed: " .. dump(result))
+			old_core_log("info", "[DC] push failed: " .. dump(result))
 		end
 	end)
 end
