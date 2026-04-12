@@ -1,3 +1,5 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
+
 const express = require('express');
 const socketio = require('socket.io');
 const http = require('http');

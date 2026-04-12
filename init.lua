@@ -1,3 +1,5 @@
+-- SPDX-License-Identifier: LGPL-2.1-or-later
+
 local dc = {}
 
 -- use these over calling the normal functions to avoid infinite loops

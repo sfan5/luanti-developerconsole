@@ -1,7 +1,8 @@
 {
   "name": "developerconsole",
-  "version": "1.0.0",
   "description": "Luanti Developer Console (server-side part)",
+  "homepage": "https://github.com/sfan5/luanti-developerconsole",
+  "license": "LGPL-2.1-or-later",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
