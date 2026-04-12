@@ -98,9 +98,14 @@ local function do_inspect(msg)
 	if t == "table" or t == "userdata" or t == "string" then
 		local mt = getmetatable(object)
 		local func_t
-		if mt and t == "table" and type(mt.__index) == "table" then
-			func_t = mt.__index
-		elseif mt and t ~= "table" then
+		if type(mt) == "table" and mt.__index ~= nil then
+			if type(mt.__index) == "table" then
+				func_t = mt.__index
+			end
+		elseif type(mt) == "table" and t == "userdata" then
+			-- engine userdata has a hidden metatable and keeps the bare methods
+			-- without __index in the metatable, for some reason
+			-- (in violation of normal Lua behavior)
 			func_t = mt
 		end
 		if func_t then
@@ -118,7 +123,7 @@ local function do_inspect(msg)
 		ret.callable = true
 	elseif t == "table" or t == "userdata" then
 		local mt = getmetatable(object)
-		if mt and type(mt.__call) == "function" then
+		if type(mt) == "table" and type(mt.__call) == "function" then
 			ret.callable = true
 		end
 	end
