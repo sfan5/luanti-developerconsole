@@ -469,13 +469,14 @@ function formatPreview(parsedExpr, previewData) {
 	return ret;
 }
 
-function evaluateExpression(cmd) {
-	const promptNode = appendToOutput(`\u2b62\u00a0${cmd}`, 'prompt');
+function evaluateExpression(cmdStr) {
+	const cmd = hljs.highlight(cmdStr, {language: 'lua', ignoreIllegals: true});
+	const promptNode = appendToOutput('\u2b62\u00a0' + cmd.value, '', null, true);
 
 	// FIXME: should probably do this using css instead?
 	const pre = '\u2b60\u00a0';
 
-	socket.emit('rpc', { a: 'eval', code: cmd }, (data) => {
+	socket.emit('rpc', { a: 'eval', code: cmdStr }, (data) => {
 		if (data === null) {
 			appendToOutput(`${pre}Timeout`, 'error', promptNode);
 		} else if (data.syntax_error) {
@@ -483,9 +484,8 @@ function evaluateExpression(cmd) {
 		} else if (data.runtime_error) {
 			appendToOutput(`${pre}Runtime error: ${data.runtime_error}`, 'error', promptNode);
 		} else {
-			const codeStr = String(data.ret);
-			const code = hljs.highlight(codeStr, {language: 'lua', ignoreIllegals: true});
-			appendToOutput(pre + code.value, '', promptNode, true);
+			const ret = hljs.highlight(String(data.ret), {language: 'lua', ignoreIllegals: true});
+			appendToOutput(pre + ret.value, '', promptNode, true);
 		}
 	});
 }
