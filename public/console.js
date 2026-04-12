@@ -215,14 +215,14 @@ function findPreviewableExpr(expr, findPos) {
 	// First neutralize strings so we can do our regex hackery
 	if (expr.indexOf('\\') != -1 || expr.indexOf('[[') != -1)
 		return null;
-	expr = expr
+	const lookup = expr
 		.replace(/"[^"]*"/, (s) => "!".repeat(s.length))
 		.replace(/'[^']*'/, (s) => "!".repeat(s.length));
 	// Now try finding a place where a Lua expression could fit
 	let last = 0, skipNext = false;
 	const parts = [];
 	const r = new RegExp(/[{}(),=]\s*/g);
-	while ((m = r.exec(expr)) !== null) {
+	while ((m = r.exec(lookup)) !== null) {
 		const token = m[0].trim();
 		if (skipNext) {
 			skipNext = false;
@@ -236,8 +236,8 @@ function findPreviewableExpr(expr, findPos) {
 		if (token === '}' || token === ')')
 			skipNext = true;
 	}
-	if (!skipNext && last != expr.length) {
-		parts.push({ start: last, end: expr.length });
+	if (!skipNext && last != lookup.length) {
+		parts.push({ start: last, end: lookup.length });
 	}
 	// Check if the part under the cursor is previewable and use that
 	for (const p of parts) {
