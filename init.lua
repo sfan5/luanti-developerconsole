@@ -18,7 +18,6 @@ end
 
 --[[
 list of ideas:
-* indicate if poller is online, show luanti version from user agent
 * show line/source for defined functions (debug.getinfo) <-> source inspector
 * general tab completion when writing e.g. a function call
   -> split "preview" and "tab completion" for this

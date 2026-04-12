@@ -4,6 +4,8 @@ const DEBUG = false;
 const output = document.getElementById('output');
 const input = document.getElementById('input');
 const preview = document.getElementById('preview');
+const statusText = document.getElementById('status-text');
+const statusIcon = document.getElementById('status-icon');
 
 const socket = io(); // Socket.IO
 
@@ -33,6 +35,26 @@ function saveHistory() {
 	}
 }
 
+function updateOnlineStatus(info) {
+	if (!socket.active || !socket.connected) {
+		// !active means won't try to reconnect automatically
+		statusText.innerText = socket.active ? "Waiting for WebSocket connection\u2026" :
+			"Can't connect to WebSocket, try reloading the page";
+		statusIcon.innerText = '\u2754';
+		input.setAttribute("disabled", "");
+		return;
+	}
+	if (!info) {
+		statusText.innerText = "Luanti is not connected";
+		statusIcon.innerText = '\u274c';
+		input.setAttribute("disabled", "");
+		return;
+	}
+	input.removeAttribute("disabled");
+	statusText.innerText = String(info);
+	statusIcon.innerText = '\u2705';
+}
+
 let debounceTimeout; // for preview fetch
 let lastPreview = null; // { pExpr, pData }
 let pendingPreview = null;
@@ -57,6 +79,19 @@ function appendToOutput(text, className = '', after = null, raw = false) {
 	output.scrollTop = output.scrollHeight;
 	return div;
 }
+
+socket.on('connect', () => {
+	// maybe unlock input already in anticipation?
+	updateOnlineStatus();
+});
+
+socket.on('disconnect', () => {
+	updateOnlineStatus();
+});
+
+socket.on('online_status', (data) => {
+	updateOnlineStatus(data);
+});
 
 socket.on('event', (data) => {
 	if (!Array.isArray(data)) {
@@ -83,9 +118,8 @@ socket.on('event', (data) => {
 // FIXME: the whole identifier regex thing needs to also handle reserved ones...
 function isSafeExpression(expr) {
 	const parts = expr.split('.');
-	if (parts.length === 0) {
+	if (parts.length === 0)
 		return false;
-	}
 	return parts.every(part => {
 		// only allows strings without escapes for [] syntax
 		return /^[a-zA-Z_][a-zA-Z0-9_]*\s*(\[\s*([0-9]+|"[^"\\]*")\s*\])?$/.test(part);
@@ -615,6 +649,6 @@ output.addEventListener('mouseup', () => {
 });
 
 loadHistory();
-input.removeAttribute("disabled");
+updateOnlineStatus();
 
 })();
