@@ -217,15 +217,24 @@ function findPreviewableExpr(expr, findPos) {
 		.replace(/"[^"]*"/, (s) => "!".repeat(s.length))
 		.replace(/'[^']*'/, (s) => "!".repeat(s.length));
 	// Now try finding a place where a Lua expression could fit
-	// FIXME: should consider places where only an identifier is valid
-	let last = 0;
+	let last = 0, skipNext = false;
 	const parts = [];
-	const r = new RegExp(/[{(,=]\s*/g);
+	const r = new RegExp(/[{}(),=]\s*/g);
 	while ((m = r.exec(expr)) !== null) {
-		parts.push({ start: last, end: m.index });
+		const token = m[0].trim();
+		if (skipNext) {
+			skipNext = false;
+		} else if (token === '=') {
+			// expression can never be before =
+		} else {
+			parts.push({ start: last, end: m.index });
+		}
 		last = m.index + m[0].length;
+		// an expression can never follow these
+		if (token === '}' || token === ')')
+			skipNext = true;
 	}
-	if (last != expr.length) {
+	if (!skipNext && last != expr.length) {
 		parts.push({ start: last, end: expr.length });
 	}
 	// Check if the part under the cursor is previewable and use that
