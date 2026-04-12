@@ -303,9 +303,9 @@ function decidePreview(parsedExpr, data) {
 	let ret = {
 		wasIndexed: data.was_indexed || false,
 	};
-    // We should only filter keys and make suggestions when the user
-	// hasn't already typed a valid expression
-	const shouldSuggestKey = !ret.wasIndexed;
+	// We can only filter keys and make suggestions when the user hasn't already
+	// typed a valid expression.
+	const canSuggestKey = !ret.wasIndexed;
 	if (data.type === 'nil') {
 		ret.text = 'nil';
 	} else if (data.type === 'string') {
@@ -326,10 +326,10 @@ function decidePreview(parsedExpr, data) {
 			else
 				ret.text = `[ 1 \u2026 ${data.keys.length} ]`;
 		} else if (data.keys.length > 0) {
+			const index = parsedExpr.index;
 			let matches = data.keys;
-			let suggestIndex = -1;
 			matches.sort();
-			if (shouldSuggestKey) {
+			if (canSuggestKey) {
 				// show only keys matching the syntax
 				const oldLen = matches.length;
 				if (parsedExpr.arrayIndex) {
@@ -339,34 +339,37 @@ function decidePreview(parsedExpr, data) {
 					// only valid identifiers
 					matches = matches.filter(k => typeof(k) === 'string' && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
 				}
-				const index = parsedExpr.index;
+				let suggestIndex = -1;
 				if (index === null || index === '') {
 					// when not filtering this is used to inform the user about
 					// keys they can't see
-					ret.tableKeysHidden = oldLen - matches.length; 
+					ret.tableKeysHidden = oldLen - matches.length;
 				} else if (typeof(index) === 'string') {
 					({ keys: matches, best: suggestIndex } = getBestKeyMatch(matches, index));
 				}
-			} else {
-				// TODO: tab-complete final ] or "] if key exists
+
+				// put together tab-completion suggestion
+				if (parsedExpr.arrayIndex) {
+					if (suggestIndex >= 0) {
+						ret.tableKeyHilit = suggestIndex;
+						ret.tabComplete = {
+							text: '[' + formatLuaValue(matches[suggestIndex]) + ']'
+						};
+					}
+				} else {
+					if (suggestIndex >= 0) {
+						ret.tableKeyHilit = suggestIndex;
+						ret.tabComplete = {
+							text: matches[suggestIndex]
+						};
+					}
+				}
 			}
 			ret.tableKeys = matches;
-			// put together tab-completion suggestion
-			if (parsedExpr.arrayIndex) {
-				if (suggestIndex >= 0) {
-					ret.tableKeyHilit = suggestIndex;
-					ret.tabComplete = '[' + formatLuaValue(matches[suggestIndex]) + ']';
-				}
-			} else {
-				if (suggestIndex >= 0) {
-					ret.tableKeyHilit = suggestIndex;
-					ret.tabComplete = matches[suggestIndex];
-				}
-			}
 		}
 	}
 	// tab-complete metamethods
-	if (parsedExpr.colonOp && data.meta.length > 0 && shouldSuggestKey) {
+	if (parsedExpr.colonOp && data.meta.length > 0 && canSuggestKey) {
 		let funcs = data.meta;
 		funcs = funcs.filter(k => /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(k));
 		let suggestIndex = -1;
@@ -376,9 +379,19 @@ function decidePreview(parsedExpr, data) {
 		ret.tableKeys = funcs;
 		if (suggestIndex >= 0) {
 			ret.tableKeyHilit = suggestIndex;
-			ret.tabComplete = funcs[suggestIndex] + '()';
-			ret.tabCompleteOffset = -1; // leaves cursor inside call
+			ret.tabComplete = {
+				text: funcs[suggestIndex] + '()',
+				offset: -1, // leaves cursor inside call
+			};
 		}
+	}
+	// tab-complete function calls (if entire name already typed)
+	if (!canSuggestKey && ret.wasIndexed && data.callable) {
+		ret.tabComplete = {
+			text: '()',
+			offset: -1,
+			append: true
+		};
 	}
 	return ret;
 }
@@ -391,7 +404,7 @@ function formatPreview(parsedExpr, previewData) {
 
 	const PREVIEW_MAX_LEN = 520;
 	let ret = '';
-	if (previewData.stringValue) {
+	if (previewData.stringValue !== undefined) {
 		// also normalizes whitespace (incl. newlines)
 		let text = formatLuaValue(previewData.stringValue).replace(/\s+/g, ' ');
 		// TODO truncate inside quotes and show entire len
@@ -400,7 +413,7 @@ function formatPreview(parsedExpr, previewData) {
 		}
 
 		ret = escapeHtml(text);
-	} else if (previewData.tableKeys) {
+	} else if (previewData.tableKeys !== undefined) {
 		let keys;
 		if (parsedExpr.arrayIndex) {
 			// need to format keys like proper Lua values
@@ -562,12 +575,16 @@ input.addEventListener('keydown', (ev) => {
 	} else if (ev.key === 'Tab') {
 		ev.preventDefault();
 		const val = input.value;
-		if (lastPreview) {
-			const { pExpr, pData } = lastPreview;
-			if (pData && pData.tabComplete) {
-				input.value = val.substring(0, pExpr.lastStart) + pData.tabComplete + val.substring(pExpr.lastEnd);
-				// move cursor to end
-				const off = pData.tabCompleteOffset || 0;
+		if (lastPreview && lastPreview.pData) {
+			const { pExpr } = lastPreview;
+			const { tabComplete } = lastPreview.pData;
+			if (tabComplete) {
+				if (tabComplete.append)
+					input.value = val.substring(0, pExpr.lastEnd) + tabComplete.text + val.substring(pExpr.lastEnd);
+				else
+					input.value = val.substring(0, pExpr.lastStart) + tabComplete.text + val.substring(pExpr.lastEnd);
+				// move cursor
+				const off = tabComplete.offset || 0;
 				input.setSelectionRange(input.value.length + off, input.value.length + off);
 				triggerTabComplete();
 			}

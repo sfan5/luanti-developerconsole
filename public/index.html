@@ -5,8 +5,13 @@
 	<title>Luanti Developer Console</title>
 	<link rel="stylesheet" href="modern-normalize.min.css">
 	<style>
+		:root {
+			/* to match modern-normalize */
+			--mono-font: ui-monospace,SFMono-Regular,Consolas,'Liberation Mono',Menlo,monospace;
+		}
 		main {
-			font-family: monospace;
+			font-family: var(--mono-font);
+			font-size: 1em;
 			background-color: #1e1e1e;
 			color: #fff;
 			margin: 2em;
@@ -28,7 +33,7 @@
 			background-color: #1e1e1e;
 			color: #fff;
 			border: 1px solid #333;
-			font-family: monospace;
+			font-family: var(--mono-font);
 			border-radius: 6px;
 		}
 		#preview {

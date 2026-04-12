@@ -115,6 +115,14 @@ local function do_inspect(msg)
 			ret.meta = funcs
 		end
 	end
+	if t == "function" then
+		ret.callable = true
+	elseif t == "table" or t == "userdata" then
+		local mt = getmetatable(object)
+		if mt and type(mt.__call) == "function" then
+			ret.callable = true
+		end
+	end
 	return ret
 end
 
