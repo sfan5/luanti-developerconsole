@@ -108,7 +108,7 @@ function onPollRequestCompleted() {
 		lastOnlineStatus = null;
 		io.emit('online_status', lastOnlineStatus);
 		DEBUG && console.log("online reset");
-	}, RPC_TIMEOUT);
+	}, 1000);
 }
 
 app.get('/poll', (req, res) => {
@@ -131,7 +131,7 @@ app.get('/poll', (req, res) => {
 	// Handle online status
 	clearTimeout(onlineStatusReset);
 	onlineStatusReset = undefined;
-	const newOnlineStatus = ua.replace(/^([^/]+)\/([^\s]+)\s+.*$/, '$1 $2');
+	const newOnlineStatus = ua.replace(/^([^/]+)\/([^\s]+)\s*.*$/, '$1 $2');
 	if (lastOnlineStatus !== newOnlineStatus) {
 		lastOnlineStatus = newOnlineStatus;
 		io.emit('online_status', lastOnlineStatus);

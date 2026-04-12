@@ -37,7 +37,7 @@ function saveHistory() {
 
 function updateOnlineStatus(info) {
 	if (!socket.active || !socket.connected) {
-		// !active means won't try to reconnect automatically
+		// !active means it won't try to reconnect automatically
 		statusText.innerText = socket.active ? "Waiting for WebSocket connection\u2026" :
 			"Can't connect to WebSocket, try reloading the page";
 		statusIcon.innerText = '\u2754';
@@ -53,6 +53,10 @@ function updateOnlineStatus(info) {
 	input.removeAttribute("disabled");
 	statusText.innerText = String(info);
 	statusIcon.innerText = '\u2705';
+
+	// Auto-focus the input element (which is not possible when it's disabled)
+	if (document.activeElement === document.body)
+		input.focus();
 }
 
 let debounceTimeout; // for preview fetch
@@ -81,7 +85,6 @@ function appendToOutput(text, className = '', after = null, raw = false) {
 }
 
 socket.on('connect', () => {
-	// maybe unlock input already in anticipation?
 	updateOnlineStatus();
 });
 
