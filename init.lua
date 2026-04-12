@@ -33,12 +33,7 @@ list of ideas:
 
 --]]
 
-local function mydump(obj)
-	if type(obj) == "table" then
-		-- TODO
-	end
-	return dump(obj)
-end
+local mydump = dofile(core.get_modpath(core.get_current_modname()) .. "/dump.lua")
 
 local function do_eval(msg)
 	-- note: no brackets to allow multiple return values
