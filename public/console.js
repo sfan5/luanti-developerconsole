@@ -44,9 +44,9 @@ function escapeHtml(text) {
 		.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function appendToOutput(text, className = '', after = null) {
+function appendToOutput(text, className = '', after = null, raw = false) {
 	const div = document.createElement('div');
-	div.innerHTML = escapeHtml(text);
+	div.innerHTML = raw ? String(text) : escapeHtml(text);
 	if (className)
 		div.className = className;
 	if (after)
@@ -455,7 +455,9 @@ function evaluateExpression(cmd) {
 		} else if (data.runtime_error) {
 			appendToOutput(`${pre}Runtime error: ${data.runtime_error}`, 'error', promptNode);
 		} else {
-			appendToOutput(pre + String(data.ret), '', promptNode);
+			const codeStr = String(data.ret);
+			const code = hljs.highlight(codeStr, {language: 'lua', ignoreIllegals: true});
+			appendToOutput(pre + code.value, '', promptNode, true);
 		}
 	});
 }
@@ -573,6 +575,14 @@ input.addEventListener('keydown', (ev) => {
 	}
 });
 
+output.addEventListener('mouseup', () => {
+	// Focus the input box, but without breaking text selection
+	if (window.getSelection().isCollapsed) {
+		input.focus();
+	}
+});
+
 loadHistory();
+input.removeAttribute("disabled");
 
 })();

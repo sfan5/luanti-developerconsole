@@ -54,10 +54,16 @@
 <body>
 	<main>
 		<div id="output"></div>
-		<input id="input" type="text" placeholder="Lua code..." autofocus autocomplete="off" />
+		<input id="input" type="text" placeholder="Lua code..." disabled autofocus autocomplete="off" />
 		<div id="preview"></div>
 	</main>
 	<script src="/socket.io/socket.io.js"></script>
+	<link rel="stylesheet" href="/highlightjs/styles/obsidian.min.css">
+	<!-- NOTE: highlightjs was patched to handle the <function> syntax correctly
+		 before className:"function",beginKeywords:"function",end:"\\)",
+		 after className:"function",beginKeywords:"function",end:"[)>]",
+	-->
+	<script src="/highlightjs/highlight.min.js"></script>
 	<script src="console.js"></script>
 </body>
 </html>

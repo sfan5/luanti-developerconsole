@@ -24,7 +24,6 @@ list of ideas:
   -> split "preview" and "tab completion" for this
 * mod storage viewer??
 * send tables with structure so they can be displayed tree view-like
-  or at least throw syntax highlighting on the display
 * basic profiler (top function calls in globalstep)
 * allow multiline editing *or* separate code editor with saved snippets?
 * integrate with lua_api to show function params
