@@ -18,14 +18,15 @@ end
 
 --[[
 list of ideas:
+* tab complete node and group names (+ entities?)
 * show line/source for defined functions (debug.getinfo) <-> source inspector
 * general tab completion when writing e.g. a function call
-  -> split "preview" and "tab completion" for this
-* mod storage viewer??
+* mod storage viewer?
 * send tables with structure so they can be displayed tree view-like
-* basic profiler (top function calls in globalstep)
+* basic profiler (top function calls in globalstep)??
 * allow multiline editing *or* separate code editor with saved snippets?
 * integrate with lua_api to show function params
+* switch to webpack+typescript or whatever is needed
 
 --]]
 

@@ -116,9 +116,10 @@ socket.on('event', (data) => {
 	}
 });
 
+/* TODO: all this stuff needs to be rewritten as proper lexing/parsing */
+
 // Allows simple table or array access, no function calls or anything
-// FIXME: would need to rewrite this to support foo["b"]["a"]
-// FIXME: the whole identifier regex thing needs to also handle reserved ones...
+// FIXME: need to also handle reserved identifiers everywhere
 function isSafeExpression(expr) {
 	const parts = expr.split('.');
 	if (parts.length === 0)
@@ -130,7 +131,6 @@ function isSafeExpression(expr) {
 }
 
 // Parses a Lua expression *if* it's something we can preview
-// FIXME: should replace this with real lexing/parsing, probably
 function parsePreviewableExpr(expr) {
 	if (expr.trim() === '' || expr.trim() === '...')
 		return null;
@@ -204,6 +204,14 @@ function parsePreviewableExpr(expr) {
 			lastEnd
 		};
 	}
+	return null;
+}
+
+// Find an expression that we can preview at the cursor position
+function findPreviewableExpr(expr, pos) {
+	let ret = parsePreviewableExpr(expr);
+	if (ret && pos >= ret.lastStart && pos <= ret.lastEnd)
+		return ret;
 	return null;
 }
 
@@ -550,16 +558,18 @@ function triggerTabComplete() {
 	const TAB_COMPLETE_DELAY = 200;
 
 	// if we can update the preview without delay, do that immediately
-	const val = input.value;
-	if (updatePreview(parsePreviewableExpr(val))) {
+	const valOld = input.value;
+	const pExprOld = findPreviewableExpr(valOld, input.selectionEnd);
+	if (updatePreview(pExprOld)) {
 		cancelPendingPreview();
 		return;
 	}
 
 	// old suggestion is invalidated immediately, but preview stays
 	if (lastPreview && lastPreview.pData) {
-		delete lastPreview.pData.tabComplete;
-		preview.innerHTML = formatPreview(lastPreview.pExpr, lastPreview.pData);
+		const { pExpr, pData } = lastPreview;
+		delete pData.tabComplete;
+		preview.innerHTML = formatPreview(pExpr, pData);
 	}
 
 	// else wait and update afterwards
@@ -568,13 +578,13 @@ function triggerTabComplete() {
 	debounceTimeout = setTimeout(() => {
 		debounceTimeout = undefined;
 
-		const newVal = input.value;
-		const pExpr = parsePreviewableExpr(newVal);
+		const val = input.value;
+		const pExpr = findPreviewableExpr(val, selectionEnd = input.selectionEnd);
 		if (updatePreview(pExpr)) {
 			cancelPendingPreview();
 			return;
 		}
-		if (val != newVal && !shouldPreviewSimilar(parsePreviewableExpr(val), pExpr)) {
+		if (valOld != val && !shouldPreviewSimilar(pExprOld, pExpr)) {
 			// user is still typing, wait more.
 			triggerTabComplete();
 			return;
@@ -591,6 +601,10 @@ function triggerTabComplete() {
 }
 
 input.addEventListener('input', () => {
+	triggerTabComplete();
+});
+
+input.addEventListener('selectionchange', () => {
 	triggerTabComplete();
 });
 
