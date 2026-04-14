@@ -53,7 +53,8 @@ local function do_eval(msg)
 		return {runtime_error = tostring(ret[1])}
 	end
 
-	for i, v in ipairs(ret) do
+	-- use pairs here to not choke on nil values
+	for i, v in pairs(ret) do
 		ret[i] = mydump(v)
 	end
 	return {ret = ret}

@@ -572,9 +572,10 @@ function evaluateExpression(cmdStr) {
 			appendToOutput(`${pre}Runtime error: ${data.runtime_error}`, 'error', promptNode);
 		} else {
 			const parts = [];
-			if (!data.ret)
-				data.ret = ['nil'];
-			for (const retStr of data.ret) {
+			if (!data.ret) // empty list
+				data.ret = [null];
+			for (let retStr of data.ret) {
+				retStr = retStr || 'nil'; // value not present
 				const ret = hljs.highlight(retStr, {language: 'lua', ignoreIllegals: true});
 				parts.push(ret.value);
 			}

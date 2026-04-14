@@ -19,11 +19,12 @@ This mod provides a developer console (REPL) for Luanti inside a web browser.
 The console will try to auto-complete/preview the Lua expression at the current cursor
 position, as long as it's safe to do so (no side-effects).
 
-Table keys will be shown in a list like format inside square brackets. So if you see
+Table keys will be shown in a list-like format inside square brackets. So if you see
 `[ foo, bar, baz ]` that means the Lua table looks like `{ foo = ..., bar = ..., baz = ... }`.
 
 In addition the symbol to the left of the preview text will be either **`?`** or **`=`**.
-An `=` will be shown if the expression returned a non-nil value, so the preview shows the value of the expression. In case of `?` the preview will show you the value of the expression *so far*, as well as table keys that *could be* inserted to form a valid expression.
+An `=` will be shown if the expression was valid and non-nil, and the preview will show that value.
+In case of `?` the preview will show you the value of the valid expression *so far*, as well as table keys that *could be* inserted to form a valid expression.
 
 
 ### License
