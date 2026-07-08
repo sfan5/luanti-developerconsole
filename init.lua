@@ -320,3 +320,19 @@ end)
 core.register_on_shutdown(function()
 	dc.flush()
 end)
+
+----
+
+local function asdf()
+	local pl = core.get_connected_players()[1]
+	local func = rawget(_G, "make_density_map")
+	if pl and type(func) == "function" then
+		local ibuf, iw, ih = func(pl:get_pos(), 30)
+		local data = core.encode_png(iw, ih, table.concat(ibuf, ""), 1)
+		ibuf = nil
+		data = core.encode_base64(data)
+		dc.push({event = "img", d = data})
+	end
+	core.after(0.333, asdf)
+end
+core.after(0, asdf)

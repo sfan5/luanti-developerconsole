@@ -112,6 +112,8 @@ socket.on('event', (data) => {
 				// normal print or log level 'none'
 				appendToOutput("\u00a0\u00a0" + it.s);
 			}
+		} else if (it.event == "img") {
+			document.getElementById("the_image").src = "data:image/png;base64," + it.d;
 		} else {
 			DEBUG && console.log("unhandled event:", it);
 		}

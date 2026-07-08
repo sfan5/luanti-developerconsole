@@ -72,6 +72,12 @@
 		#output .log {
 			color: #ff55ff;
 		}
+		#the_image {
+			border: 1px solid #000;
+			width: 400px;
+			height: 200px;
+			image-rendering: crisp-edges;
+		}
 	</style>
 </head>
 <body>
@@ -84,6 +90,9 @@
 		<input id="input" class="border" type="text" placeholder="Lua code..."
 			disabled autofocus autocomplete="off" />
 		<div id="preview"></div>
+		<div style="position: absolute; bottom: 2em; right: 2em;">
+			<img id="the_image" />
+		</div>
 	</main>
 	<script src="/socket.io/socket.io.js"></script>
 	<link rel="stylesheet" href="/highlightjs/styles/obsidian.min.css">
