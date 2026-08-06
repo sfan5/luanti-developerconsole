@@ -287,7 +287,7 @@ function dc.push(data)
 end
 
 function dc.flush()
-	if #pending_msgs == 0 then
+	if #pending_msgs == 0 or online_retry >= 0 then
 		return
 	end
 	local t = pending_msgs
